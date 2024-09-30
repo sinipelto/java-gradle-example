@@ -1,0 +1,240 @@
+# Copyright 2024 Tampere University
+# 
+# Main authors: Toni Blåfield
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in 
+# the Software without restriction, including without limitation the rights to 
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so, 
+# subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS 
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR 
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+# ---------------------------------------------------------------------------------
+
+# You can override the included template(s) by including variable overrides
+# SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
+# Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/pipeline/#customization
+# Dependency Scanning customization: https://docs.gitlab.com/ee/user/application_security/dependency_scanning/#customizing-the-dependency-scanning-settings
+# Container Scanning customization: https://docs.gitlab.com/ee/user/application_security/container_scanning/#customizing-the-container-scanning-settings
+# Note that environment variables can be set in several places
+# See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
+
+# REPOSITORY
+# https://gitlab.com/Sinipelto/cicd-test
+
+workflow:
+  name: CICD Pipeline to Build, Test, Release and Deploy
+
+# using defaults for every job is preferred
+# instead of using globals, if keyword supported
+default:
+  image:
+    name: eclipse-temurin:8u422-b05-jdk
+  # to consolidate with GH, specify runner OS for all Jobs
+  # this can be found in the GitLab WebUI page CICD -> runners
+  tags:
+    - saas-linux-medium-amd64
+  interruptible: true
+  before_script:
+    - GRADLE_USER_HOME="$(pwd)/.gradle"
+    - export GRADLE_USER_HOME
+  cache:
+    key: $CI_PIPELINE_ID
+    untracked: false
+    when: on_success
+    paths:
+      - '**/*.gradle*'
+      - '**/gradle-wrapper.properties'
+
+stages:
+  - build
+  - test
+  - release_pre
+  - release_post
+  - release
+  - deploy
+
+variables:
+  APP_NAME: 'test-app'
+  BUILD_DIR: 'client/build/libs'
+  ENVIRONMENT: 'Production'
+
+build:
+  stage: build
+  # only/except has to be defined
+  # for each job separately :)
+  only:
+    refs:
+      - master
+      - release
+  except:
+    changes:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'version'
+  image:
+    name: eclipse-temurin:8u422-b05-jdk
+  script:
+    - ./gradlew build --no-daemon
+
+# include:
+#   - template: Security/SAST.gitlab-ci.yml
+
+test:
+  stage: test
+  only:
+    refs:
+      - master
+      - release
+  except:
+    changes:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'version'
+  dependencies:
+    - build
+  image:
+    name: eclipse-temurin:8u422-b05-jdk
+  script:
+    - ./gradlew test --no-daemon
+
+release_pre:
+  stage: release_pre
+  only:
+    refs:
+      - master
+      - release
+  except:
+    changes:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'version'
+  image:
+    name: bitnami/git:latest
+  dependencies:
+    - build
+    - test
+  script:
+    # NOTE!! FOR GH SEPARATE RW-ACCESS TOKEN CREATED IN PROJECT SETTINGS!!!
+    - chmod +x version.sh
+    - VERSION_OLD=$(cat version)
+    - VERSION=$(./version.sh $VERSION_OLD)
+    - echo "VERSION_OLD=$VERSION_OLD" >> ${GITHUB_ENV:-build.env}
+    - echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
+    - echo $VERSION > version
+    - git config --global --add safe.directory "$(pwd)"
+    - git config user.name "DevOps User"
+    - git config user.email "devops@company.com"
+    - git add version
+    - git commit -m "[skip ci] Automatic Bump Version from v${VERSION_OLD} to v${VERSION}."
+    - chmod +x push.sh
+    - ./push.sh $CI_SERVER_HOST $CI_COMMIT_BRANCH
+  artifacts:
+    when: on_success
+    untracked: false
+    reports:
+      dotenv: build.env
+
+release_post:
+  stage: release_post
+  only:
+    refs:
+      - master
+      - release
+  except:
+    changes:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'version'
+  dependencies:
+    - build
+    - test
+    - release_pre
+  image:
+    name: eclipse-temurin:8u422-b05-jdk
+  script:
+    # FETCHING WRONG VERSION BECAUSE USING OLDER REF AS GIT CHECKOUT POINT
+    # TODO: HOW TO CHOOSE WHICH REF TO CHECKOUT BEFORE SCRIPT???
+    # DEFAULTS: BEFORE_SCRIPT: NO GIT AVAILABLE IN ALL IMAGES SO CANT USE THAT
+    # - VERSION=$(cat version)
+    # - echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
+    # - VERSION=$VERSION
+    - ./gradlew jar --no-daemon
+    - mv -v ${BUILD_DIR}/*.jar ./${APP_NAME}_v${VERSION}.jar
+  artifacts:
+    when: on_success
+    untracked: false
+    name: ${APP_NAME}_v${VERSION}
+    access: all
+    paths:
+      - version
+      - Readme.txt
+      - ${APP_NAME}_v${VERSION}.jar
+    expire_in: "7 days"
+
+release:
+  stage: release
+  only:
+    refs:
+      - master
+      - release
+  except:
+    changes:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'version'
+  image: 
+    name: registry.gitlab.com/gitlab-org/release-cli:latest
+  dependencies:
+    - build
+    - test
+    - release_pre
+    - release_post
+  script: echo "Unnecessary echo due to required script field in release job"
+  release:
+    # Description is REQUIRED field TODO: how differs from 'name'?
+    name: "Automatic Release v${VERSION}"
+    description: "Automatic Release v${VERSION}"
+    tag_name: v${VERSION}
+    tag_message: "Release Tag: v${VERSION}"
+    # Create tag to current ref/branch
+    ref: $CI_COMMIT_BRANCH
+
+deploy:
+  stage: deploy
+  only:
+    refs:
+      - master
+      - release
+  except:
+    changes:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'version'
+  dependencies:
+    - build
+    - test
+    - release_pre
+    - release_post
+    - release
+  image:
+    name: eclipse-temurin:8u422-b05-jdk
+  script:
+    - ./gradlew publish --no-daemon
+  environment:
+    name: Production
+    url: $CI_REPOSITORY_URL
+    action: start
+    deployment_tier: production
+
+  # TODO: PUBLISH TO GITLAB PACKAGES
