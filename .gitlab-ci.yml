@@ -66,7 +66,7 @@ stages:
 
 variables:
   APP_NAME: 'test-app'
-  BUILD_DIR: 'client/build/libs'
+  BUILD_DIR: 'build/libs'
   ENVIRONMENT: 'Production'
 
 build:
