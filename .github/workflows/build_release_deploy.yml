@@ -201,7 +201,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     container:
-      image: eclipse-temurin:8u422-b05-jdk
+      image: registry.gitlab.com/gitlab-org/release-cli:latest
 
     permissions:
       contents: write
