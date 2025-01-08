@@ -54,35 +54,6 @@ env:
   ENVIRONMENT: 'Production'
 
 jobs:
-  build:
-    # runs-on is required even though using container!
-    runs-on: ubuntu-latest
-    # GH WF does support only defaults: run: currently,
-    # so container: image: has to be specified separately each job
-    container:
-      image: eclipse-temurin:8u422-b05-jdk
-
-    # TODO: How to consolidate perms in GL?
-    permissions:
-      contents: read
-
-    steps:
-      # NOTE: There is no similar action in GL!
-      # TODO: How do we checkout to ref in GH???
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-
-      - uses: actions/cache@v4
-        with:
-          key: ${{ github.run_id }}
-          path: |
-            **/*.gradle*
-            **/gradle-wrapper.properties
-
-      - run: |
-          ./gradlew build --no-daemon
-
   test:
     runs-on: ubuntu-latest
     container:
@@ -149,6 +120,52 @@ jobs:
           git commit -m "[skip ci] Automatic Bump Version from v${VERSION_OLD} to v${VERSION}."
           chmod +x push.sh
           ./push.sh $GITHUB_SERVER_URL $GITHUB_REF_NAME
+
+  deploy:
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:8u422-b05-jdk
+
+    permissions:
+      contents: read
+      packages: write
+      deployments: write
+
+    needs:
+      - build
+      - test
+      - release_pre
+      - release_post
+      - release
+
+    # Publish to production environment
+    # TODO: how to parameterize name? cannot acccess env.* only vars.*
+    environment:
+      name: Production
+      url: ${{ github.repositoryUrl }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/cache@v4
+        with:
+          key: ${{ github.run_id }}
+          path: |
+            '**/*.gradle*'
+            '**/gradle-wrapper.properties'
+
+      - run: |
+          VERSION=$(cat version)
+          echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
+          ./gradlew publish --no-daemon
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}_v${{ env.VERSION }}
+
+      # TODO: PUBLISH PACKAGE TO GITHUB PACKAGES
 
   release_post:
     runs-on: ubuntu-latest
@@ -245,31 +262,21 @@ jobs:
             version
             Readme.txt
             ${{ env.APP_NAME }}_v${{ env.VERSION }}.jar
-
-  deploy:
+  build:
+    # runs-on is required even though using container!
     runs-on: ubuntu-latest
+    # GH WF does support only defaults: run: currently,
+    # so container: image: has to be specified separately each job
     container:
       image: eclipse-temurin:8u422-b05-jdk
 
+    # TODO: How to consolidate perms in GL?
     permissions:
       contents: read
-      packages: write
-      deployments: write
-
-    needs:
-      - build
-      - test
-      - release_pre
-      - release_post
-      - release
-
-    # Publish to production environment
-    # TODO: how to parameterize name? cannot acccess env.* only vars.*
-    environment:
-      name: Production
-      url: ${{ github.repositoryUrl }}
 
     steps:
+      # NOTE: There is no similar action in GL!
+      # TODO: How do we checkout to ref in GH???
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
@@ -278,16 +285,9 @@ jobs:
         with:
           key: ${{ github.run_id }}
           path: |
-            '**/*.gradle*'
-            '**/gradle-wrapper.properties'
+            **/*.gradle*
+            **/gradle-wrapper.properties
 
       - run: |
-          VERSION=$(cat version)
-          echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
-          ./gradlew publish --no-daemon
+          ./gradlew build --no-daemon
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.APP_NAME }}_v${{ env.VERSION }}
-
-      # TODO: PUBLISH PACKAGE TO GITHUB PACKAGES
