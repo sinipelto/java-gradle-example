@@ -95,8 +95,8 @@ jobs:
       contents: write
 
     needs:
-      - build
       - test
+      - build
 
     steps:
       - uses: actions/checkout@v4
