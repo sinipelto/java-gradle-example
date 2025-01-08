@@ -133,7 +133,6 @@ jobs:
 
     needs:
       - build
-      - test
       - release_pre
       - release_post
       - release
