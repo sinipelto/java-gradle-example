@@ -38,20 +38,11 @@ workflow:
 # using defaults for every job is preferred
 # instead of using globals, if keyword supported
 default:
-  image:
-    name: eclipse-temurin:8u422-b05-jdk
   # to consolidate with GH, specify runner OS for all Jobs
   # this can be found in the GitLab WebUI page CICD -> runners
   tags:
     - saas-linux-medium-amd64
   interruptible: true
-  cache:
-    key: $CI_PIPELINE_ID
-    untracked: false
-    when: on_success
-    paths:
-      - '**/*.gradle*'
-      - '**/gradle-wrapper.properties'
 
 stages:
   - build
@@ -81,6 +72,13 @@ build:
       - 'version'
   image:
     name: eclipse-temurin:8u422-b05-jdk
+  cache:
+    key: $CI_PIPELINE_ID
+    untracked: false
+    when: on_success
+    paths:
+      - '**/*.gradle*'
+      - '**/gradle-wrapper.properties'
   script:
     - ./gradlew build --no-daemon
 
@@ -102,6 +100,13 @@ test:
     - build
   image:
     name: eclipse-temurin:8u422-b05-jdk
+  cache:
+    key: $CI_PIPELINE_ID
+    untracked: false
+    when: on_success
+    paths:
+      - '**/*.gradle*'
+      - '**/gradle-wrapper.properties'
   script:
     - ./gradlew test --no-daemon
 
@@ -118,6 +123,7 @@ release_pre:
       - 'version'
   image:
     name: bitnami/git:latest
+  # NO CACHE
   dependencies:
     - build
     - test
@@ -159,6 +165,13 @@ release_post:
     - release_pre
   image:
     name: eclipse-temurin:8u422-b05-jdk
+  cache:
+    key: $CI_PIPELINE_ID
+    untracked: false
+    when: on_success
+    paths:
+      - '**/*.gradle*'
+      - '**/gradle-wrapper.properties'
   script:
     # FETCHING WRONG VERSION BECAUSE USING OLDER REF AS GIT CHECKOUT POINT
     # TODO: HOW TO CHOOSE WHICH REF TO CHECKOUT BEFORE SCRIPT???
@@ -192,6 +205,7 @@ release:
       - 'version'
   image: 
     name: registry.gitlab.com/gitlab-org/release-cli:latest
+  # NO CACHE
   dependencies:
     - build
     - test
@@ -226,6 +240,13 @@ deploy:
     - release
   image:
     name: eclipse-temurin:8u422-b05-jdk
+  cache:
+    key: $CI_PIPELINE_ID
+    untracked: false
+    when: on_success
+    paths:
+      - '**/*.gradle*'
+      - '**/gradle-wrapper.properties'
   script:
     - ./gradlew publish --no-daemon
   environment:
