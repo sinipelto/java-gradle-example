@@ -182,7 +182,7 @@ jobs:
       - release_post
       - release
     environment:
-      name: ${{ env.ENVIRONMENT }}
+      name: ${{ vars.ENVIRONMENT }}
       url: ${{ github.repositoryUrl }}
     steps:
       - uses: actions/checkout@v5
