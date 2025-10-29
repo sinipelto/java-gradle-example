@@ -3,8 +3,8 @@ name: Example CICD Pipeline to Build, Test, Release and Deploy a Java Gradle Pro
 on:
   push:
     branches:
-      - master
-      - release
+      - 'master'
+      - 'release'
     paths-ignore:
       - '**/*.md'
       - '**/*.txt'
@@ -12,7 +12,7 @@ on:
   pull_request:
     types: [opened, reopened]
     branches:
-      - master
+      - 'master'
     paths-ignore:
       - '**/*.md'
       - '**/*.txt'
@@ -21,9 +21,9 @@ on:
 
 
 env:
-  APP_NAME: 'test-app'
-  BUILD_DIR: 'build/libs'
-  ENVIRONMENT: 'Production'
+  APP_NAME: "test-app"
+  BUILD_DIR: "build/libs"
+  ENVIRONMENT: "Production"
 
 jobs:
   build:
@@ -40,8 +40,8 @@ jobs:
         with:
           key: ${{ github.run_id }}
           path: |
-            **/*.gradle*
-            **/gradle-wrapper.properties
+            '**/*.gradle*'
+            '**/gradle-wrapper.properties'
       - run: |
           ./gradlew build --no-daemon
 
@@ -61,8 +61,8 @@ jobs:
         with:
           key: ${{ github.run_id }}
           path: |
-            **/*.gradle*
-            **/gradle-wrapper.properties
+            '**/*.gradle*'
+            '**/gradle-wrapper.properties'
       - run: |
           ./gradlew test --no-daemon
 
@@ -91,8 +91,8 @@ jobs:
           git config user.email "devops@company.com"
           git add version
           git commit -m "[skip ci] Automatic Bump Version from v${VERSION_OLD} to v${VERSION}."
-          chmod +x push.sh
-          ./push.sh ${GITHUB_SERVER_URL} ${{ github.ref }}
+          "[[ ${GITHUB_SERVER_URL} == *github* ]] && git push -o ci.skip origin HEAD:${{ github.ref }}"
+          "[[ ${GITHUB_SERVER_URL} == *gitlab* ]] && git push -o ci.skip https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git HEAD:${{ github.ref }}"
 
   release_post:
     runs-on: ubuntu-latest
@@ -112,11 +112,11 @@ jobs:
         with:
           key: ${{ github.run_id }}
           path: |
-            **/*.gradle*
-            **/gradle-wrapper.properties
+            '**/*.gradle*'
+            '**/gradle-wrapper.properties'
       - run: |
-          VERSION=$(cat version)
-          echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
+          "[ -n ${GITHUB_ENV} ] && VERSION=$(cat version)"
+          "[ -n ${GITHUB_ENV} ] && echo VERSION=$VERSION >> ${GITHUB_ENV:-build.env}"
           ./gradlew jar --no-daemon
           mv -v ${BUILD_DIR}/*.jar ${APP_NAME}_v${VERSION}.jar
       - uses: actions/upload-artifact@v4
@@ -148,8 +148,8 @@ jobs:
         with:
           ref: ${{ github.ref }}
       - run: |
-          VERSION=$(cat version)
-          echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
+          "[ -n ${GITHUB_ENV} ] && VERSION=$(cat version)"
+          "[ -n ${GITHUB_ENV} ] && echo VERSION=$VERSION >> ${GITHUB_ENV:-build.env}"
       - uses: actions/download-artifact@v4
         with:
           name: ${{ env.APP_NAME }}_v${{ env.VERSION }}
@@ -182,7 +182,7 @@ jobs:
       - release_post
       - release
     environment:
-      name: Production
+      name: ${{ env.ENVIRONMENT }}
       url: ${{ github.repositoryUrl }}
     steps:
       - uses: actions/checkout@v5
@@ -192,8 +192,8 @@ jobs:
         with:
           key: ${{ github.run_id }}
           path: |
-            **/*.gradle*
-            **/gradle-wrapper.properties
+            '**/*.gradle*'
+            '**/gradle-wrapper.properties'
       - run: |
           VERSION=$(cat version)
           echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
