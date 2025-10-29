@@ -115,8 +115,8 @@ jobs:
             '**/*.gradle*'
             '**/gradle-wrapper.properties'
       - run: |
-          "[ -n ${GITHUB_ENV} ] && VERSION=$(cat version)"
-          "[ -n ${GITHUB_ENV} ] && echo VERSION=$VERSION >> ${GITHUB_ENV:-build.env}"
+          [ -n "${GITHUB_ENV}" ] && VERSION=$(cat version)
+          [ -n "${GITHUB_ENV}" ] && echo VERSION=$VERSION >> ${GITHUB_ENV:-build.env}
           ./gradlew jar --no-daemon
           mv -v ${BUILD_DIR}/*.jar ${APP_NAME}_v${VERSION}.jar
       - uses: actions/upload-artifact@v4
@@ -148,8 +148,8 @@ jobs:
         with:
           ref: ${{ github.ref }}
       - run: |
-          "[ -n ${GITHUB_ENV} ] && VERSION=$(cat version)"
-          "[ -n ${GITHUB_ENV} ] && echo VERSION=$VERSION >> ${GITHUB_ENV:-build.env}"
+          [ -n "${GITHUB_ENV}" ] && VERSION=$(cat version)
+          [ -n "${GITHUB_ENV}" ] && echo VERSION=$VERSION >> ${GITHUB_ENV:-build.env}
       - uses: actions/download-artifact@v4
         with:
           name: ${{ env.APP_NAME }}_v${{ env.VERSION }}
@@ -195,8 +195,8 @@ jobs:
             '**/*.gradle*'
             '**/gradle-wrapper.properties'
       - run: |
-          VERSION=$(cat version)
-          echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
+          [ -n "${GITHUB_ENV}" ] && VERSION=$(cat version)
+          [ -n "${GITHUB_ENV}" ] && echo "VERSION=$VERSION" >> ${GITHUB_ENV:-build.env}
           ./gradlew publish --no-daemon
       - uses: actions/download-artifact@v4
         with:
